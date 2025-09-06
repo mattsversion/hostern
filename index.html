@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>roblox username finder</title>
+<style>
+  :root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; }
+  body { background:#0b0b10; color:#e9e9ef; margin:0; padding:24px; }
+  h1 { margin:0 0 16px; font-size:20px; letter-spacing:.4px; }
+  .card { background:#14141d; border:1px solid #232335; border-radius:12px; padding:16px; max-width:880px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
+  label { font-size:12px; opacity:.85; display:block; margin-bottom:6px; }
+  input, select, button, textarea {
+    background:#0f0f16; color:#e9e9ef; border:1px solid #2a2a3d;
+    border-radius:10px; padding:10px 12px; font-size:14px; outline:none;
+  }
+  button { cursor:pointer; }
+  .chip { padding:6px 10px; border-radius:999px; background:#1b1b28; border:1px solid #2a2a3d; }
+  .list { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+  .item { background:#0f0f16; border:1px solid #25253a; border-radius:10px; padding:10px; display:flex; justify-content:space-between; align-items:center; }
+  .ok { color:#8ef5a7; font-weight:600; }
+  .taken { color:#ff8a8a; font-weight:600; }
+  .hint { font-size:12px; opacity:.7; }
+</style>
+</head>
+<body>
+  <h1>roblox username finder</h1>
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>required fragment (letters/numbers only)</label>
+        <input id="include" placeholder="e.g. void, nox, veil" />
+        <div class="hint">tip: try one word at a time. examples: void, nox, umbra, vyn, crypt, lune</div>
+      </div>
+      <div>
+        <label>length (sweet spot: 10–12)</label>
+        <input id="len" type="number" min="6" max="20" value="11" style="width:120px" />
+      </div>
+      <div>
+        <label># to generate</label>
+        <select id="count">
+          <option>12</option><option>24</option><option selected>36</option><option>60</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>style toggles</label>
+        <div class="row">
+          <label class="chip"><input type="checkbox" class="style" value="cool" checked> cool</label>
+          <label class="chip"><input type="checkbox" class="style" value="aesthetic" checked> aesthetic</label>
+          <label class="chip"><input type="checkbox" class="style" value="spooky" checked> spooky</label>
+          <label class="chip"><input type="checkbox" class="style" value="space" checked> space</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="gen">generate</button>
+      <button id="check">check availability</button>
+      <div id="status" class="hint" aria-live="polite"></div>
+    </div>
+
+    <div id="results" class="list"></div>
+  </div>
+
+<script>
+/* ===== fragments tuned for dark / aesthetic vibes ===== */
+const banks = {
+  cool:   ["vex","vexi","zeth","zev","knox","raze","drex","kael","strix","riven","kaine","vale","vael"],
+  aesthetic:["lune","veil","vail","noir","nox","aero","ava","eira","ely","irae","kyro","lyx","syra","sera","vyn"],
+  spooky: ["umbra","crypt","wraith","shade","rune","ghast","void","hex","morrow","dusk","grave","hollow","thorn"],
+  space:  ["nova","orion","aster","astro","cosmo","nebul","quasar","lyra","vega","altair","rigel","sagan","pluto"]
+};
+const suffixes = ["on","en","an","yn","ix","ex","is","ius","iel","ith","or","ar","ius","eus","eo","eus","ae","yre","yra","yx"];
+
+const rand = a => a[Math.floor(Math.random()*a.length)];
+const uniq = arr => [...new Set(arr)];
+
+function slugOk(s){ return /^[a-zA-Z0-9]+$/.test(s); }
+
+function buildPool(selected) {
+  let pool = [];
+  selected.forEach(tag => pool = pool.concat(banks[tag]||[]));
+  return uniq(pool);
+}
+
+function craftName(pool, include, targetLen){
+  // pick 2–3 pieces, then trim/pad to targetLen tastefully
+  const a = include || rand(pool);
+  const b = rand(pool.filter(p=>p!==a));
+  const c = Math.random()<0.45 ? rand(suffixes) : "";
+
+  let base = a + b + c;
+  // tasteful mutations
+  base = base.replace(/vv/g,"v").replace(/ii/g,"i").replace(/aa/g,"a");
+  // length shaping
+  if (base.length > targetLen) base = base.slice(0,targetLen);
+  if (base.length < targetLen) {
+    const pad = rand(suffixes);
+    base = (base + pad).slice(0,targetLen);
+  }
+  // lowercase + slight stylized swaps
+  base = base.toLowerCase().replace(/vyn$/,"vynn").replace(/nox$/,"noxe");
+  // roblox: must start with a letter
+  if (!/^[a-z]/.test(base)) base = "x" + base;
+  return base;
+}
+
+function generate() {
+  const selected = [...document.querySelectorAll(".style:checked")].map(i=>i.value);
+  const pool = buildPool(selected.length?selected:Object.keys(banks));
+  let include = document.getElementById("include").value.trim().toLowerCase();
+  include = include && slugOk(include) ? include : "";
+  const targetLen = Math.max(6, Math.min(20, Number(document.getElementById("len").value)||11));
+  const count = Number(document.getElementById("count").value)||24;
+
+  const names = new Set();
+  let guard = 0;
+  while (names.size < count && guard < count*10){
+    names.add(craftName(pool, include, targetLen));
+    guard++;
+  }
+  render([...names]);
+}
+
+function render(list){
+  const el = document.getElementById("results");
+  el.innerHTML = "";
+  list.forEach(name=>{
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `<span>${name}</span><span class="hint">unchecked</span>`;
+    row.dataset.name = name;
+    el.appendChild(row);
+  });
+}
+
+async function checkAll(){
+  const rows = [...document.querySelectorAll(".item")];
+  const status = document.getElementById("status");
+  status.textContent = "checking…";
+  let ok = 0;
+
+  // batch in small groups to be gentle on rate limits
+  const groups = [];
+  for (let i=0; i<rows.length; i+=10) groups.push(rows.slice(i,i+10));
+
+  for (const group of groups){
+    await Promise.all(group.map(async row=>{
+      const name = row.dataset.name;
+      try {
+        const res = await fetch(`/api/roblox-validate?u=${encodeURIComponent(name)}`);
+        const j = await res.json();
+        // auth.roblox.com validate returns { message, code } when invalid; we invert logic here:
+        const available = j?.nameAvailable ?? (j?.code ? false : true);
+        row.querySelector("span:last-child").textContent = available ? "available" : "taken";
+        row.querySelector("span:last-child").className = available ? "ok" : "taken";
+        if (available) ok++;
+      } catch(e){
+        row.querySelector("span:last-child").textContent = "error";
+        row.querySelector("span:last-child").className = "taken";
+      }
+    }));
+    await new Promise(r=>setTimeout(r, 250)); // tiny pause
+  }
+  status.textContent = `done • ${ok} available`;
+}
+
+document.getElementById("gen").addEventListener("click", generate);
+document.getElementById("check").addEventListener("click", checkAll);
+
+// first view
+generate();
+</script>
+</body>
+</html>
